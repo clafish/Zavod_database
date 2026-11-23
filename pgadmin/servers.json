@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "P1-SUN manudacturing",
+      "Group": "Databases",
+      "Host": "db",
+      "Port": 5432,
+      "MaintenanceDB": "Zavod_database",
+      "Username": "prorab",
+      "SSLMode": "prefer"
+    }
+  }
+}
