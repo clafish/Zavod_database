@@ -19,9 +19,9 @@ CREATE TABLE customers (
 
 CREATE TABLE materials (
     material_id   int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    title         text NOT NULL,
-    unit          text NOT NULL CHECK (unit IN ('m', 'kg', 'amount', 'm2', 'm3')),
-    available_qty numeric(12,3) NOT NULL DEFAULT 0 CHECK (available_qty >= 0)
+    name         text NOT NULL,
+    unit          text NOT NULL CHECK (unit IN ('mm','g', 'pcs')),
+    available_qty int NOT NULL DEFAULT 0 CHECK (available_qty >= 0)
 );
 
 ---------------------- ORDER RECEIVING ----------------------
@@ -31,9 +31,15 @@ CREATE TABLE customer_order (
     customer_id       int NOT NULL REFERENCES customers(customer_id),
     product_name      text NOT NULL,
     ordered_qty       int NOT NULL CHECK (ordered_qty > 0),
-    accepted_at       timestamptz NOT NULL DEFAULT now(),
+    accepted_at       timestamptz,
     status            text NOT NULL DEFAULT 'draft'
-                      CHECK (status IN ('draft', 'confirmed', 'in_progress', 'done', 'cancelled'))
+                      CHECK (status IN ('draft', 'confirmed', 'in_progress', 'done', 'cancelled')),
+
+     CONSTRAINT chk_accepted_at CHECK (                                                   -- the data is presented only when order is accepted
+           (status = 'draft' AND accepted_at IS NULL)
+        OR (status IN ('confirmed', 'in_progress', 'done') AND accepted_at IS NOT NULL)
+        OR status = 'cancelled'
+    )
 );
 
 ---------------------- SCHEMAS ----------------------
@@ -42,16 +48,16 @@ CREATE TABLE schemas (
     schema_id         int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     customer_order_id int NOT NULL REFERENCES customer_order(customer_order_id),
     name              text NOT NULL,
-    version_num       int NOT NULL DEFAULT 1 CHECK (version_num > 0),
+    version_no        int NOT NULL DEFAULT 1 CHECK (version_no > 0),
     created_at        timestamptz NOT NULL DEFAULT now(),
     is_locked         boolean NOT NULL DEFAULT false,
-    UNIQUE (customer_order_id, version_num)
+    UNIQUE (customer_order_id, version_no)
 );
 
 CREATE TABLE schema_materials (
     schema_id   int NOT NULL REFERENCES schemas(schema_id),
     material_id int NOT NULL REFERENCES materials(material_id),
-    qty_perunit numeric(12,3) NOT NULL CHECK (qty_perunit > 0),
+    qty_perunit int NOT NULL CHECK (qty_perunit > 0),
     PRIMARY KEY (schema_id, material_id)
 );
 
@@ -66,7 +72,7 @@ CREATE TABLE production_order (
     status              text NOT NULL DEFAULT 'draft'
                         CHECK (status IN ('draft', 'confirmed', 'in_progress', 'done', 'cancelled')),
     confirmed_at        timestamptz,
-    CONSTRAINT chk_confirmed_at CHECK (
+    CONSTRAINT chk_confirmed_at CHECK (                                       -- the data is presented only when order is accepted
            (status = 'draft' AND confirmed_at IS NULL)
         OR (status IN ('confirmed', 'in_progress', 'done') AND confirmed_at IS NOT NULL)
         OR status = 'cancelled'
@@ -76,7 +82,7 @@ CREATE TABLE production_order (
 CREATE TABLE production_order_component (
     production_order_id int NOT NULL REFERENCES production_order(production_order_id),
     material_id         int NOT NULL REFERENCES materials(material_id),
-    reserved_qty        numeric(12,3) NOT NULL CHECK (reserved_qty > 0),
+    reserved_qty        int NOT NULL CHECK (reserved_qty > 0),
     PRIMARY KEY (production_order_id, material_id)
 );
 
@@ -85,7 +91,7 @@ CREATE TABLE consumption_record (
     production_order_id   int NOT NULL,
     material_id           int NOT NULL,
     operator_id           int NOT NULL REFERENCES operators(operator_id),
-    qty                   numeric(12,3) NOT NULL CHECK (qty > 0),
+    qty                   int NOT NULL CHECK (qty > 0),
     recorded_at           timestamptz NOT NULL DEFAULT now(),
     FOREIGN KEY (production_order_id, material_id)
         REFERENCES production_order_component(production_order_id, material_id)
